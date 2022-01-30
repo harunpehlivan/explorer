@@ -77,10 +77,9 @@ class EmbedDataForm(forms.Form):
         if not data_to_embed:
             return self.cleaned_data
 
-        if encoding_is_hex:
-            if not uses_only_hash_chars(data_to_embed):
-                msg = _('Sorry, that string contains non-hex characters. Uncheck "Data is Hexadecimal" to instead embed the data as a string.')
-                raise forms.ValidationError(msg)
+        if encoding_is_hex and not uses_only_hash_chars(data_to_embed):
+            msg = _('Sorry, that string contains non-hex characters. Uncheck "Data is Hexadecimal" to instead embed the data as a string.')
+            raise forms.ValidationError(msg)
 
         return self.cleaned_data
 

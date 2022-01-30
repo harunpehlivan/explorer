@@ -23,11 +23,7 @@ def block_overview(request, coin_symbol, block_representation):
 
     # 1 indexed page
     current_page = request.GET.get('page')
-    if current_page:
-        current_page = int(current_page)
-    else:
-        current_page = 1
-
+    current_page = int(current_page) if current_page else 1
     # TODO: fail gracefully if the user picks a number of pages that is too large
     # Waiting on @matthieu's change to API first (currently throws 502)
 
@@ -98,9 +94,7 @@ def block_ordered_tx(request, coin_symbol, block_num, tx_num):
             txn_offset=int(tx_num),
             api_key=BLOCKCYPHER_API_KEY,
             )
-    txids = block_overview.get('txids')
-
-    if txids:
+    if txids := block_overview.get('txids'):
         tx_hash = txids[0]
         msg = _('This is transaction <strong>%(tx_num)s</strong> in block <strong>%(block_num)s</strong> (<a href="%(permalink)s">permalink</a>).' % {
             'tx_num': tx_num,

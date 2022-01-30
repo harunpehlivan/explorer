@@ -17,12 +17,11 @@ def get_client_ip(request):
     """
     Get IP from a request
     """
-    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0]
-    else:
-        ip = request.META.get('REMOTE_ADDR')
-    return ip
+    return (
+        x_forwarded_for.split(',')[0]
+        if (x_forwarded_for := request.META.get('HTTP_X_FORWARDED_FOR'))
+        else request.META.get('REMOTE_ADDR')
+    )
 
 
 def get_user_agent(request):
@@ -48,7 +47,9 @@ def simple_csprng(num_chars=32, eligible_chars='abcdefghjkmnpqrstuvwxyzABCDEFGHJ
     Cryptographically secure but may not work on all OSs.
     Shouldn't cause blocking but it's possible.
     """
-    return ''.join(random.SystemRandom().choice(eligible_chars) for x in range(num_chars))
+    return ''.join(
+        random.SystemRandom().choice(eligible_chars) for _ in range(num_chars)
+    )
 
 
 def simple_pw_generator(num_chars=10, eligible_chars='abcdefghjkmnpqrstuvwxyz23456789'):
@@ -58,7 +59,7 @@ def simple_pw_generator(num_chars=10, eligible_chars='abcdefghjkmnpqrstuvwxyz234
 
     http://stackoverflow.com/a/2257449
     """
-    return ''.join(random.choice(eligible_chars) for x in range(num_chars))
+    return ''.join(random.choice(eligible_chars) for _ in range(num_chars))
 
 
 def uri_to_url(uri, base_url=BASE_URL):

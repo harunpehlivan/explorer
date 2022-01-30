@@ -85,7 +85,4 @@ class WebHook(models.Model):
         elif self.data_from_post:
             r = requests.post(url_to_hit, params=json.dumps(self.data_from_post))
 
-        if is_good_status_code(r.status_code):
-            return True
-        else:
-            return r.text
+        return True if is_good_status_code(r.status_code) else r.text

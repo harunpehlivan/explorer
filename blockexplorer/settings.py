@@ -8,6 +8,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.7/ref/settings/
 """
 
+
 import re
 import dj_database_url
 
@@ -25,21 +26,10 @@ LOCALE_PATHS = (PROJECT_PATH + "/locale/",)
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-if os.getenv('DEBUG') == 'True':
-    DEBUG = True
-else:
-    DEBUG = False
-if os.getenv('TEMPLATE_DEBUG') == 'True':
-    TDEBUG = True
-else:
-    TDEBUG = False
-
+DEBUG = os.getenv('DEBUG') == 'True'
+TDEBUG = os.getenv('TEMPLATE_DEBUG') == 'True'
 # DDT can cause extreme slowness clocking template rendering CPU times
-if os.getenv('DISABLE_DEBUG_TOOLBAR') == 'False':
-    DISABLE_DEBUG_TOOLBAR = False
-else:
-    DISABLE_DEBUG_TOOLBAR = True
-
+DISABLE_DEBUG_TOOLBAR = os.getenv('DISABLE_DEBUG_TOOLBAR') != 'False'
 ALLOWED_HOSTS = [
         'live.blockcypher.com',
         'blockcypher.herokuapp.com',
@@ -185,9 +175,7 @@ else:
         DEBUG_TOOLBAR_PATCH_SETTINGS = True
 
 
-IS_PRODUCTION = (SITE_DOMAIN == PRODUCTION_DOMAIN)
-
-if IS_PRODUCTION:
+if IS_PRODUCTION := (SITE_DOMAIN == PRODUCTION_DOMAIN):
     EMAIL_DEV_PREFIX = False
 else:
     EMAIL_DEV_PREFIX = True

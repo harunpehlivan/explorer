@@ -76,12 +76,7 @@ def address_overview(request, coin_symbol, address, wallet_name=None):
     try:
         user_agent = request.META.get('HTTP_USER_AGENT')
 
-        if is_bot(user_agent):
-            # very crude hack!
-            confirmations = 1
-        else:
-            confirmations = 0
-
+        confirmations = 1 if is_bot(user_agent) else 0
         address_details = get_address_full(
                 address=address,
                 coin_symbol=coin_symbol,
@@ -127,13 +122,12 @@ def address_overview(request, coin_symbol, address, wallet_name=None):
                 messages.error(request, msg, extra_tags='safe')
                 print('ERROR')
 
-        # there can be only one
-        af_initial = get_object_or_None(AddressForwarding,
-                auth_user=request.user,
-                initial_address=address,
-                coin_symbol=coin_symbol,
-                )
-        if af_initial:
+        if af_initial := get_object_or_None(
+            AddressForwarding,
+            auth_user=request.user,
+            initial_address=address,
+            coin_symbol=coin_symbol,
+        ):
             msg = _('''
             Private Message: this address will automatically forward to <a href="%(destination_addr_uri)s">%(destination_address)s</a>
             any time a payment is received.
@@ -230,9 +224,9 @@ def subscribe_address(request, coin_symbol):
                 auth_user = request.user
             else:
                 user_email = form.cleaned_data['email']
-                # Check for existing user with that email
-                existing_user = get_object_or_None(AuthUser, email=user_email)
-                if existing_user:
+                if existing_user := get_object_or_None(
+                    AuthUser, email=user_email
+                ):
                     msg = _('Please first login to this account to create a notification')
                     messages.info(request, msg)
                     return HttpResponseRedirect(existing_user.get_login_uri())
@@ -254,13 +248,12 @@ def subscribe_address(request, coin_symbol):
                     # Log the login
                     LoggedLogin.record_login(request)
 
-            existing_subscription_cnt = AddressSubscription.objects.filter(
-                    auth_user=auth_user,
-                    b58_address=coin_address,
-                    unsubscribed_at=None,
-                    disabled_at=None,
-                    ).count()
-            if existing_subscription_cnt:
+            if existing_subscription_cnt := AddressSubscription.objects.filter(
+                auth_user=auth_user,
+                b58_address=coin_address,
+                unsubscribed_at=None,
+                disabled_at=None,
+            ).count():
                 msg = _("You're already subscribed to that address. Please choose another address.")
                 messages.warning(request, msg)
             else:
@@ -474,20 +467,12 @@ def address_webhook(request, secret_key, ignored_key):
         for input_entry in payload['inputs']:
             for address in input_entry.get('addresses', []):
                 input_addresses.add(address)
-        if address_subscription.b58_address in input_addresses:
-            is_withdrawal = True
-        else:
-            is_withdrawal = False
-
+        is_withdrawal = address_subscription.b58_address in input_addresses
         output_addresses = set()
         for output_entry in payload.get('outputs', []):
             for address in output_entry['addresses']:
                 output_addresses.add(address)
-        if address_subscription.b58_address in output_addresses:
-            is_deposit = True
-        else:
-            is_deposit = False
-
+        is_deposit = address_subscription.b58_address in output_addresses
         tx_event = OnChainTransaction.objects.create(
                 tx_hash=tx_hash,
                 address_subscription=address_subscription,
@@ -531,34 +516,28 @@ def address_webhook(request, secret_key, ignored_key):
             client.captureMessage('TX Event %s unsubscribed' % tx_event.id)
             # TODO: notify user they've been unsubscribed
 
-        else:
-            # proceed with normal email sending
+        elif double_spend and (tx_is_new or not tx_event.double_spend):
+            # We have the first reporting of a double-spend
+            tx_event.send_double_spend_tx_notification()
 
-            if double_spend and (tx_is_new or not tx_event.double_spend):
-                # We have the first reporting of a double-spend
-                tx_event.send_double_spend_tx_notification()
-
-            elif num_confs == 0 and tx_is_new:
+        elif num_confs == 0 and tx_is_new:
                 # First broadcast
-                if tx_event.address_subscription.notify_on_broadcast:
-                    if tx_event.is_deposit and tx_event.address_subscription.notify_on_deposit:
-                        tx_event.send_unconfirmed_tx_email()
-                    elif tx_event.is_withdrawal and tx_event.address_subscription.notify_on_withdrawal:
-                        tx_event.send_unconfirmed_tx_email()
-
-            elif num_confs == 6:
+            if tx_event.address_subscription.notify_on_broadcast and (
+                tx_event.is_deposit
+                and tx_event.address_subscription.notify_on_deposit
+                or tx_event.is_withdrawal
+                and tx_event.address_subscription.notify_on_withdrawal
+            ):
+                tx_event.send_unconfirmed_tx_email()
+        elif num_confs == 6:
                 # Sixth confirm
-                if tx_event.address_subscription.notify_on_sixth_confirm:
-                    if tx_event.is_deposit and tx_event.address_subscription.notify_on_deposit:
-                        tx_event.send_confirmed_tx_email()
-                    elif tx_event.is_withdrawal and tx_event.address_subscription.notify_on_withdrawal:
-                        tx_event.send_confirmed_tx_email()
-    else:
-        # active subscription with unverfied email (can't contact)
-        # TODO: add unsub if orig subscription is > X days old
-        # eventually these could pile up
-        pass
-
+            if tx_event.address_subscription.notify_on_sixth_confirm and (
+                tx_event.is_deposit
+                and tx_event.address_subscription.notify_on_deposit
+                or tx_event.is_withdrawal
+                and tx_event.address_subscription.notify_on_withdrawal
+            ):
+                tx_event.send_confirmed_tx_email()
     # Update logging
     webhook.address_subscription = address_subscription
     webhook.succeeded = True
@@ -607,8 +586,7 @@ def search_widgets(request, coin_symbol):
             redir_url = reverse('widgets_overview', kwargs=kwargs)
             return HttpResponseRedirect(redir_url)
     elif request.method == 'GET':
-        new_coin_symbol = request.GET.get('c')
-        if new_coin_symbol:
+        if new_coin_symbol := request.GET.get('c'):
             initial = {'coin_symbol': new_coin_symbol}
             form = AddressSearchForm(initial=initial)
 
@@ -666,9 +644,9 @@ def setup_address_forwarding(request, coin_symbol):
                 auth_user = None
 
                 if user_email:
-                    # Check for existing user with that email
-                    existing_user = get_object_or_None(AuthUser, email=user_email)
-                    if existing_user:
+                    if existing_user := get_object_or_None(
+                        AuthUser, email=user_email
+                    ):
                         msg = _('Please first login to this account to create a notification')
                         messages.info(request, msg)
                         return HttpResponseRedirect(existing_user.get_login_uri())
@@ -689,11 +667,6 @@ def setup_address_forwarding(request, coin_symbol):
 
                         # Log the login
                         LoggedLogin.record_login(request)
-                else:
-                    # No user email given, proceed anonymously
-                    # FIXME: confirm this
-                    pass
-
             # Setup Payment Forwarding
             forwarding_address_details = get_forwarding_address_details(
                     destination_address=destination_address,
